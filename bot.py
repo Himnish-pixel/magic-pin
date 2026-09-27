@@ -198,13 +198,22 @@ def _trigger_message(trig: Dict[str, Any], merchant: Dict[str, Any],
         cta = "Book next class"
     elif kind == "customer_lapsed_hard":
         focus = payload.get("previous_focus")
-        message = "We'd love to welcome you back" + (f" for {focus.replace('_', ' ')}" if focus else "") + "."
+        message = "Let's make it easy to get back into your routine"
+        if focus:
+            message += f" and support your {focus.replace('_', ' ')} goal"
+        message += "."
         if payload.get("days_since_last_visit") is not None:
             message = f"It's been {payload['days_since_last_visit']} days since your last visit. " + message
-        if customer.get("relationship", {}).get("visits_total"):
-            message += f" You've visited {customer['relationship']['visits_total']} times before."
-        message += " Would you like me to share this week's suitable options?"
-        cta = "See options"
+        membership_months = payload.get("previous_membership_months")
+        if membership_months:
+            message += f" You trained with us for {membership_months} months before."
+        preferred = customer.get("preferences", {}).get("preferred_slots")
+        active_offers = [offer.get("title") for offer in merchant.get("offers", []) if offer.get("status") == "active" and offer.get("title")]
+        if active_offers:
+            message += f" Our current offer is {active_offers[0]}; I can confirm whether returning members are eligible."
+        session_time = f"a {preferred.replace('_', ' ')} session" if preferred else "a convenient session"
+        message += f" Would you like me to check availability for {session_time} this week?"
+        cta = "Check evening sessions"
     elif kind == "winback_eligible":
         days = payload.get("days_since_expiry")
         message = f"Your subscription expired {days} days ago." if days is not None else "Your subscription has expired."
@@ -296,8 +305,16 @@ def _trigger_message(trig: Dict[str, Any], merchant: Dict[str, Any],
             message = f"It's been {days} days since we last spoke about {topic}. Is this still a priority, or should I help with something else?"
             cta = "Continue conversation"
     elif kind == "curious_ask_due":
-        message = "Quick question: which service is most in demand for you this week?"
-        cta = "Share an update"
+        active_offers = [offer.get("title") for offer in merchant.get("offers", []) if offer.get("status") == "active" and offer.get("title")]
+        if len(active_offers) >= 2:
+            message = f"Quick one: which is getting more requests this week, {active_offers[0]} or {active_offers[1]}?"
+            cta = "Share a quick update"
+        elif active_offers:
+            message = f"Quick one: are customers asking for {active_offers[0]} more this week?"
+            cta = "Share a quick update"
+        else:
+            message = "Quick one: which service is getting the most requests this week?"
+            cta = "Share a quick update"
     else:
         details = ", ".join(f"{key.replace('_', ' ')}: {value}" for key, value in payload.items() if isinstance(value, (str, int, float, bool)))
         message = f"A {kind.replace('_', ' ') or 'business'} update is available"
